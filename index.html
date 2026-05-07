@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRMAP Lost & Found Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .srmap-blue { background: #004a99; }
+        .hidden { display: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #image-preview img { width: 100%; border-radius: 1rem; margin-top: 10px; border: 2px solid #cbd5e1; max-height: 200px; object-fit: cover; }
+        .filter-active { background-color: #004a99 !important; color: white !important; font-weight: 800; }
+        .chat-me { background: #004a99; color: white; align-self: flex-end; border-radius: 15px 15px 0 15px; }
+        .chat-them { background: #e2e8f0; color: #1a202c; align-self: flex-start; border-radius: 15px 15px 15px 0; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="auth-ui" class="h-screen flex items-center justify-center px-6 bg-white">
+        <div class="w-full max-w-md text-center">
+            <img src="https://srmap.edu.in/wp-content/uploads/2020/01/srm-logo.png" class="w-48 mx-auto mb-8 p-2 bg-white rounded-xl shadow-sm border">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100">
+                <h1 class="text-2xl font-black mb-1 text-gray-800">Student Login</h1>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">SRMAP Verified Access</p>
+                <div class="space-y-4">
+                    <input type="email" id="email" placeholder="name@srmap.edu.in" class="w-full bg-slate-50 border rounded-2xl p-4 outline-none focus:border-blue-600 transition-all">
+                    <input type="password" id="pass" placeholder="Password" class="w-full bg-slate-50 border rounded-2xl p-4 outline-none focus:border-blue-600 transition-all">
+                    <button onclick="handleAuth()" id="auth-btn" class="w-full srmap-blue text-white py-4 rounded-2xl font-black shadow-lg hover:opacity-90 active:scale-95 transition-all">Login / Sign Up</button>
+                    <p class="text-[10px] text-blue-600 font-bold">New users will be registered automatically</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MAIN HUB -->
+    <div id="app" class="hidden min-h-screen pb-24">
+        <header class="srmap-blue text-white p-4 flex justify-between items-center sticky top-0 z-50 shadow-xl">
+            <div class="flex items-center gap-3">
+                <img src="https://srmap.edu.in/wp-content/uploads/2020/01/srm-logo.png" class="h-10 bg-white p-1 rounded-lg">
+                <h1 class="font-black italic text-lg tracking-tighter uppercase">SRMAP Hub</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleModal('help-modal')" class="bg-white/20 px-3 py-2 rounded-xl text-xs font-bold">HELP</button>
+                <button onclick="handleLogout()" class="bg-white/20 px-3 py-2 rounded-xl text-xs font-bold uppercase">Logout</button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD STATS -->
+        <div class="grid grid-cols-3 gap-2 p-4 max-w-xl mx-auto">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border text-center"><p class="text-[8px] font-black text-slate-400 uppercase">Lost</p><h2 id="lostCount" class="text-xl font-black text-red-600">0</h2></div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border text-center"><p class="text-[8px] font-black text-slate-400 uppercase">Found</p><h2 id="foundCount" class="text-xl font-black text-green-600">0</h2></div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border bg-blue-50 text-center"><p class="text-[8px] font-black text-blue-400 uppercase">Recovered</p><h2 id="recoveredCount" class="text-xl font-black text-blue-600">0</h2></div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div id="filter-container" class="bg-white border-b flex gap-2 p-3 overflow-x-auto no-scrollbar sticky top-[72px] z-40 shadow-sm">
+            <button onclick="loadItems('All')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black whitespace-nowrap filter-active">ALL</button>
+            <button onclick="loadItems('V Block')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">V-BLOCK</button>
+            <button onclick="loadItems('SR Block')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">SR-BLOCK</button>
+            <button onclick="loadItems('Mess')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">MESS</button>
+            <button onclick="loadItems('Hostel')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">HOSTELS</button>
+            <button onclick="loadItems('Court')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">COURTS</button>
+            <button onclick="loadItems('Tree Court')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">TREE-COURT</button>
+            <button onclick="loadItems('Flag')" class="filter-btn px-5 py-2 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap uppercase">FLAG-AREA</button>
+        </div>
+
+        <main class="p-4 max-w-xl mx-auto space-y-4" id="feed">
+             <!-- Data from past will show here -->
+        </main>
+
+        <button onclick="toggleModal('post-modal')" class="fixed bottom-8 right-8 w-16 h-16 srmap-blue text-white rounded-full shadow-2xl z-50 text-4xl border-4 border-white font-bold transition-transform active:scale-90">+</button>
+    </div>
+
+    <!-- POST SUCCESS MODAL -->
+    <div id="success-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[300] flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center fade-in">
+            <div class="text-6xl mb-4">🎉✨</div>
+            <h2 class="text-2xl font-black mb-2 uppercase">Posted!</h2>
+            <p class="text-gray-500 italic mb-6">"Kindness is the language which the deaf can hear and the blind can see. Thank you for making our campus better! 😍🌟"</p>
+            <button onclick="closeSuccess()" class="w-full srmap-blue text-white py-4 rounded-2xl font-black shadow-xl">Back to Hub</button>
+        </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="help-modal" class="hidden fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl">
+            <h2 class="text-xl font-black mb-2">Campus Help Desk</h2>
+            <p class="text-gray-500 text-sm italic mb-4">"Returning what is lost builds a stronger community."</p>
+            <div class="bg-slate-50 p-4 rounded-2xl mb-6">
+                <p class="text-[10px] font-bold text-gray-400 uppercase">Contact Admin</p>
+                <p class="text-blue-600 font-bold text-xs">binomialtheorem9@gmail.com</p>
+            </div>
+            <button onclick="toggleModal('help-modal')" class="w-full srmap-blue text-white py-3 rounded-2xl font-bold">Close</button>
+        </div>
+    </div>
+
+    <!-- POST MODAL -->
+    <div id="post-modal" class="hidden fixed inset-0 bg-white z-[100] p-8 overflow-y-auto">
+        <h2 class="text-2xl font-black mb-6">Report Item</h2>
+        <div class="space-y-4">
+            <div class="bg-blue-50 border-2 border-dashed border-blue-200 rounded-3xl p-6 text-center" onclick="document.getElementById('cam').click()">
+                <input type="file" id="cam" accept="image/*" capture="environment" class="hidden" onchange="previewFile()">
+                <span id="cam-text" class="text-blue-600 font-bold text-xs">📸 TAKE PHOTO</span>
+                <div id="image-preview"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <label class="flex-1 border p-4 rounded-2xl text-center font-bold cursor-pointer"><input type="radio" name="i_type" value="Lost" checked> Lost</label>
+                <label class="flex-1 border p-4 rounded-2xl text-center font-bold cursor-pointer"><input type="radio" name="i_type" value="Found"> Found</label>
+            </div>
+            <input type="text" id="i_name" placeholder="Item Name (e.g. Wallet)" class="w-full border-b p-3 font-bold text-lg outline-none">
+            <select id="i_loc" class="w-full border-b p-3 bg-transparent outline-none">
+                <option value="">Select Location</option>
+                <option value="V Block">V Block</option><option value="SR Block">SR Block</option><option value="Mess">Mess Area</option>
+                <option value="Court">Courts</option><option value="Hostel">Hostels</option><option value="Tree Court">Tree Court</option>
+                <option value="Flag">Flag Area</option>
+            </select>
+            <textarea id="i_desc" placeholder="Details..." class="w-full border rounded-3xl p-4 h-24 bg-slate-50 outline-none"></textarea>
+            <button onclick="uploadItem()" id="post-btn" class="w-full srmap-blue text-white py-5 rounded-2xl font-black text-lg">Post Report</button>
+            <button onclick="toggleModal('post-modal')" class="w-full py-4 text-slate-400 font-bold text-xs uppercase">Cancel</button>
+        </div>
+    </div>
+
+    <!-- CHAT MODAL -->
+    <div id="chat-modal" class="hidden fixed inset-0 bg-white z-[200] flex flex-col">
+        <header class="srmap-blue text-white p-4 flex items-center gap-4">
+            <button onclick="closeChat()" class="text-xl">←</button>
+            <h2 id="chat-title" class="font-bold text-sm">Private Chat</h2>
+        </header>
+        <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col gap-3 bg-slate-50"></div>
+        <div class="p-4 border-t flex gap-2">
+            <input type="text" id="chat-input" placeholder="Type a message..." class="flex-grow border rounded-full px-5 py-3 outline-none">
+            <button onclick="sendMsg()" class="srmap-blue text-white w-12 h-12 rounded-full flex items-center justify-center font-bold">➤</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://vgnqynsmfcwidllpasne.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_VlRvXco2rViFdNVJfTCf7Q_4jIgKv9q";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let base64Image = "";
+        let currentChatUser = "";
+        let chatInterval;
+
+        // --- FIX REFRESH LOGOUT ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const { data } = await _supabase.auth.getSession();
+            if (data.session) enterApp();
+        });
+
+        async function handleAuth() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('pass').value;
+            if(!email.endsWith('@srmap.edu.in')) return alert("Use @srmap.edu.in email");
+            
+            const { error } = await _supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                const { error: signUpError } = await _supabase.auth.signUp({ email, password });
+                if (signUpError) return alert(signUpError.message);
+                alert("Account Ready! Click login again.");
+            } else {
+                enterApp();
+            }
+        }
+
+        function enterApp() {
+            document.getElementById('auth-ui').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            loadItems('All');
+        }
+
+        function handleLogout() { _supabase.auth.signOut(); location.reload(); }
+
+        function previewFile() {
+            const file = document.getElementById('cam').files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { base64Image = reader.result; document.getElementById('image-preview').innerHTML = `<img src="${base64Image}" />`; };
+            if (file) reader.readAsDataURL(file);
+        }
+
+        async function uploadItem() {
+            const name = document.getElementById('i_name').value;
+            const loc = document.getElementById('i_loc').value;
+            if(!name || !loc) return alert("Fill Name and Location");
+            const btn = document.getElementById('post-btn'); btn.innerText = "Posting...";
+            
+            const { data: { user } } = await _supabase.auth.getUser();
+            const { error } = await _supabase.from('reports').insert([{ 
+                item_name: name, location: loc, type: document.querySelector('input[name="i_type"]:checked').value, 
+                description: document.getElementById('i_desc').value, phone: user.email, image: base64Image, status: 'Active' 
+            }]);
+
+            if (!error) {
+                toggleModal('post-modal');
+                toggleModal('success-modal');
+            } else {
+                alert(error.message);
+                btn.innerText = "Post Report";
+            }
+        }
+
+        function closeSuccess() { toggleModal('success-modal'); loadItems('All'); }
+
+        async function resolveItem(id) {
+            await _supabase.from('reports').update({ status: 'Recovered' }).eq('id', id);
+            loadItems('All');
+        }
+
+        async function loadItems(filter) {
+            // FIX FILTER BUTTON COLORS
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                const isMatch = btn.innerText.replace('-',' ').toUpperCase() === filter.toUpperCase().replace('-',' ');
+                btn.classList.toggle('filter-active', isMatch || (filter === 'All' && btn.innerText === 'ALL'));
+            });
+
+            const userRes = await _supabase.auth.getUser();
+            const user = userRes.data.user;
+
+            const { data, error } = await _supabase.from('reports').select('*').order('created_at', { ascending: false });
+            if (error) return console.log(error);
+
+            const feed = document.getElementById('feed');
+            feed.innerHTML = "";
+            let l = 0, f = 0, r = 0;
+
+            data.forEach(item => {
+                if (item.status === 'Recovered') r++; else if (item.type === 'Lost') l++; else f++;
+                if (filter !== 'All' && !item.location.toUpperCase().includes(filter.toUpperCase())) return;
+
+                const isOwner = user && user.email === item.phone;
+                feed.innerHTML += `
+                <div class="bg-white p-5 rounded-3xl border shadow-sm fade-in ${item.status === 'Recovered' ? 'opacity-60 grayscale' : ''}">
+                    <div class="flex justify-between mb-3">
+                        <span class="text-[10px] font-black px-3 py-1 rounded-full ${item.status === 'Recovered' ? 'bg-slate-200 text-slate-500' : (item.type === 'Lost' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600')} uppercase">
+                            ${item.status === 'Recovered' ? 'Recovered' : item.type}
+                        </span>
+                        <span class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">${item.location}</span>
+                    </div>
+                    ${item.image ? `<img src="${item.image}" class="w-full rounded-2xl mb-4 h-52 object-cover border" />` : ''}
+                    <h2 class="text-xl font-black text-slate-800 leading-tight">${item.item_name}</h2>
+                    <p class="text-sm text-slate-500 mt-2">${item.description}</p>
+                    <div class="mt-4 pt-4 border-t flex flex-col gap-2">
+                        ${item.status === 'Active' ? (isOwner ? `<button onclick="resolveItem(${item.id})" class="w-full srmap-blue text-white py-3 rounded-2xl font-bold">Mark as Recovered</button>` : `<button onclick="startChat('${item.phone}')" class="w-full bg-blue-50 text-blue-700 py-3 rounded-2xl font-bold">Message Reporter</button>`) : '<p class="text-center font-bold text-xs text-slate-400 uppercase tracking-widest font-black italic">Successfully Returned</p>'}
+                    </div>
+                </div>`;
+            });
+            document.getElementById('lostCount').innerText = l;
+            document.getElementById('foundCount').innerText = f;
+            document.getElementById('recoveredCount').innerText = r;
+            if(feed.innerHTML === "") feed.innerHTML = "<p class='text-center text-slate-400 py-20 font-bold uppercase text-[10px] tracking-widest'>No data found</p>";
+        }
+
+        function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
+        async function startChat(receiver) {
+            currentChatUser = receiver;
+            document.getElementById('chat-title').innerText = "Chat with " + receiver.split('@')[0];
+            document.getElementById('chat-modal').classList.remove('hidden');
+            fetchMessages(); chatInterval = setInterval(fetchMessages, 3000);
+        }
+        function closeChat() { document.getElementById('chat-modal').classList.add('hidden'); clearInterval(chatInterval); }
+        async function sendMsg() {
+            const content = document.getElementById('chat-input').value;
+            if(!content) return;
+            const { data: { user } } = await _supabase.auth.getUser();
+            await _supabase.from('messages').insert([{ sender_email: user.email, receiver_email: currentChatUser, content: content }]);
+            document.getElementById('chat-input').value = ""; fetchMessages();
+        }
+        async function fetchMessages() {
+            const { data: { user } } = await _supabase.auth.getUser();
+            const { data } = await _supabase.from('messages').select('*').or(`and(sender_email.eq.${user.email},receiver_email.eq.${currentChatUser}),and(sender_email.eq.${currentChatUser},receiver_email.eq.${user.email})`).order('created_at', { ascending: true });
+            if(data) {
+                const chatBox = document.getElementById('chat-messages');
+                chatBox.innerHTML = data.map(m => `<div class="max-w-[80%] p-3 text-sm ${m.sender_email === user.email ? 'chat-me' : 'chat-them'}">${m.content}</div>`).join('');
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+    </script>
+</body>
+</html>
