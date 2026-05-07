@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRMAP Lost & Found Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .srmap-blue { background: #004a99; }
+        .hidden { display: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #image-preview img { width: 100%; border-radius: 1rem; margin-top: 10px; border: 2px solid #cbd5e1; max-height: 250px; object-fit: cover; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+
+    <!-- LOGIN SCREEN -->
+    <div id="auth-ui" class="h-screen flex items-center justify-center px-6 bg-white">
+        <div class="w-full max-w-md text-center">
+            <img src="https://srmap.edu.in/wp-content/uploads/2020/01/srm-logo.png" class="w-44 mx-auto mb-10">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100">
+                <h1 class="text-2xl font-black mb-1">Student Login</h1>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">SRMAP Campus Hub</p>
+                <div class="space-y-4 text-left">
+                    <input type="email" id="email" placeholder="name@srmap.edu.in" class="w-full bg-slate-50 border rounded-2xl p-4 outline-none focus:border-blue-600 transition-all">
+                    <input type="password" id="pass" placeholder="Password" class="w-full bg-slate-50 border rounded-2xl p-4 outline-none focus:border-blue-600 transition-all">
+                    <button onclick="handleAuth()" id="auth-btn" class="w-full srmap-blue text-white py-4 rounded-2xl font-bold shadow-lg hover:opacity-90">Login / Sign Up</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app" class="hidden min-h-screen pb-24">
+        <header class="srmap-blue text-white p-5 flex justify-between items-center sticky top-0 z-50 shadow-xl">
+            <h1 class="font-black italic text-lg tracking-tighter">SRMAP HUB</h1>
+            <button onclick="location.reload()" class="bg-white/10 border border-white/20 px-4 py-2 rounded-xl text-xs font-bold uppercase">Logout</button>
+        </header>
+
+        <!-- AREA FILTERS -->
+        <div class="bg-white border-b flex gap-2 p-3 overflow-x-auto no-scrollbar sticky top-[68px] z-40 shadow-sm">
+            <button onclick="loadItems('All')" class="px-5 py-2 rounded-full bg-blue-600 text-white text-[10px] font-black">ALL</button>
+            <button onclick="loadItems('V Block')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">V-BLOCK</button>
+            <button onclick="loadItems('SR Block')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">SR-BLOCK</button>
+            <button onclick="loadItems('Mess')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">MESS</button>
+            <button onclick="loadItems('Hostel')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">HOSTELS</button>
+            <button onclick="loadItems('Court')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">COURTS</button>
+            <button onclick="loadItems('Tree Court')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">TREE-COURT</button>
+            <button onclick="loadItems('Flag')" class="px-5 py-2 rounded-full bg-slate-100 text-[10px] font-bold whitespace-nowrap">FLAG-AREA</button>
+        </div>
+
+        <main class="p-4 max-w-xl mx-auto space-y-4" id="feed">
+            <!-- Items loaded here -->
+        </main>
+
+        <!-- ADD BUTTON -->
+        <button onclick="document.getElementById('post-modal').classList.remove('hidden')" class="fixed bottom-8 right-8 w-16 h-16 srmap-blue text-white rounded-full shadow-2xl z-50 text-4xl border-4 border-white font-bold transition-transform active:scale-90">+</button>
+    </div>
+
+    <!-- POST MODAL -->
+    <div id="post-modal" class="hidden fixed inset-0 bg-white z-[100] p-8 overflow-y-auto fade-in">
+        <h2 class="text-2xl font-black mb-6 tracking-tight">Report Item</h2>
+        <div class="space-y-5">
+            <!-- Camera Section -->
+            <div class="bg-blue-50 border-2 border-dashed border-blue-200 rounded-3xl p-6 text-center cursor-pointer" onclick="document.getElementById('cam').click()">
+                <input type="file" id="cam" accept="image/*" capture="environment" class="hidden" onchange="previewFile()">
+                <span id="cam-text" class="text-blue-600 font-bold text-xs">📸 TAP TO TAKE PHOTO</span>
+                <div id="image-preview"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <label class="flex-1 border p-4 rounded-2xl text-center font-bold cursor-pointer has-[:checked]:bg-red-50"><input type="radio" name="i_type" value="Lost" checked> Lost</label>
+                <label class="flex-1 border p-4 rounded-2xl text-center font-bold cursor-pointer has-[:checked]:bg-green-50"><input type="radio" name="i_type" value="Found"> Found</label>
+            </div>
+
+            <input type="text" id="i_name" placeholder="Item Name" class="w-full border-b p-3 font-bold text-lg outline-none">
+            
+            <select id="i_loc" class="w-full border-b p-3 bg-transparent outline-none font-medium">
+                <option value="">Select SRMAP Location</option>
+                <option>V Block (Vikram Sarabhai)</option>
+                <option>SR Block</option>
+                <option>Central Mess</option>
+                <option>Ganga Mess</option>
+                <option>Football Court</option>
+                <option>Basketball Court</option>
+                <option>Girls Hostel</option>
+                <option>Boys Hostel</option>
+                <option>Ganga Hostel</option>
+                <option>Vedavathi Hostel</option>
+                <option>Tree Court Area</option>
+                <option>Flag Area</option>
+            </select>
+
+            <textarea id="i_desc" placeholder="Details (Color, Unique marks...)" class="w-full border rounded-3xl p-4 h-24 bg-slate-50 outline-none"></textarea>
+            
+            <button onclick="uploadItem()" id="post-btn" class="w-full srmap-blue text-white py-5 rounded-2xl font-black text-lg shadow-xl">Post Report</button>
+            <button onclick="document.getElementById('post-modal').classList.add('hidden')" class="w-full py-4 text-slate-400 font-bold uppercase text-[10px] tracking-widest">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://vgnqynsmfcwidllpasne.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_VlRvXco2rViFdNVJfTCf7Q_4jIgKv9q";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let base64Image = "";
+
+        // AUTH
+        async function handleAuth() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('pass').value;
+            if(!email.endsWith('@srmap.edu.in')) return alert("Use @srmap.edu.in email");
+
+            const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                const { error: signUpError } = await _supabase.auth.signUp({ email, password });
+                if (signUpError) return alert(signUpError.message);
+                alert("Account created! Please log in.");
+            } else {
+                document.getElementById('auth-ui').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                loadItems('All');
+            }
+        }
+
+        // PHOTO
+        function previewFile() {
+            const file = document.getElementById('cam').files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { 
+                base64Image = reader.result; 
+                document.getElementById('image-preview').innerHTML = `<img src="${base64Image}" />`; 
+                document.getElementById('cam-text').innerText = "✅ Captured";
+            };
+            if (file) reader.readAsDataURL(file);
+        }
+
+        // UPLOAD (STABLE VERSION)
+        async function uploadItem() {
+            const name = document.getElementById('i_name').value;
+            const loc = document.getElementById('i_loc').value;
+            const type = document.querySelector('input[name="i_type"]:checked').value;
+            const desc = document.getElementById('i_desc').value;
+            const btn = document.getElementById('post-btn');
+
+            if(!name || !loc) return alert("Fill Name and Location");
+
+            try {
+                btn.innerText = "Posting..."; btn.disabled = true;
+
+                const userRes = await _supabase.auth.getUser();
+                const userEmail = userRes.data.user.email;
+
+                const { error } = await _supabase.from('reports').insert([{ 
+                    item_name: name, 
+                    location: loc, 
+                    type: type, 
+                    description: desc, 
+                    phone: String(userEmail), // Ensuring it's a string
+                    image: base64Image 
+                }]);
+
+                if (error) throw error;
+                alert("Successfully Posted!");
+                location.reload(); 
+            } catch (err) {
+                alert("Error: " + err.message);
+                btn.innerText = "Post Report"; btn.disabled = false;
+            }
+        }
+
+        // LOAD FEED
+        async function loadItems(filter) {
+            const { data, error } = await _supabase.from('reports').select('*').order('created_at', { ascending: false });
+            if (error) return console.log(error);
+
+            const feed = document.getElementById('feed');
+            feed.innerHTML = "";
+            data.forEach(item => {
+                if (filter !== 'All' && !item.location.includes(filter)) return;
+                
+                feed.innerHTML += `
+                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm fade-in">
+                    <div class="flex justify-between mb-3">
+                        <span class="text-[10px] font-black px-3 py-1 rounded-full ${item.type === 'Lost' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'} uppercase">${item.type}</span>
+                        <span class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">${item.location}</span>
+                    </div>
+                    ${item.image ? `<img src="${item.image}" class="w-full rounded-2xl mb-4 h-52 object-cover border border-slate-100" />` : ''}
+                    <h2 class="text-xl font-black text-slate-800 leading-tight">${item.item_name}</h2>
+                    <p class="text-sm text-slate-500 mt-2">${item.description}</p>
+                    <div class="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                        <span>By: ${item.phone.split('@')[0]}</span>
+                        <a href="mailto:${item.phone}" class="text-blue-600 font-black">Contact</a>
+                    </div>
+                </div>`;
+            });
+        }
+    </script>
+</body>
+</html>
